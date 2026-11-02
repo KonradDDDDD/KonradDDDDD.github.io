@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Malarz rymów</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500&family=Work+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#000; --fg:#fff; --muted:#9a9a9a; --line:#2a2a2a; --field:#141414;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+:root[data-theme="light"]{ --bg:#000; }
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Work Sans",system-ui,sans-serif;font-size:15px;line-height:1.5}
+.wrap{max-width:980px;margin:0 auto;padding:20px 16px 48px}
+h1{font-family:"Oswald","Arial Narrow",sans-serif;font-weight:500;font-size:clamp(28px,6vw,44px);line-height:1.1;margin:8px 0 4px;letter-spacing:.01em}
+h1 .b{padding:0 4px}
+.lead{color:var(--muted);margin:0 0 20px;max-width:60ch}
+textarea{width:100%;min-height:190px;background:var(--field);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:12px;font:15px/1.5 "Work Sans",system-ui,sans-serif;resize:vertical}
+textarea:focus,select:focus,button:focus,input:focus{outline:2px solid #5aa9e6;outline-offset:2px}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin:12px 0 22px;font-size:14px;color:#ccc}
+.controls label{display:flex;align-items:center;gap:6px;cursor:pointer}
+select{background:var(--field);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:4px 6px;font:inherit}
+button{background:#fff;color:#000;border:0;border-radius:4px;padding:9px 16px;font:500 15px "Work Sans",sans-serif;cursor:pointer}
+button.ghost{background:transparent;color:#ccc;border:1px solid var(--line)}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+#out{font-family:"Oswald","Arial Narrow",sans-serif;font-weight:400;font-size:clamp(17px,3.6vw,28px);line-height:1.62;letter-spacing:.005em;overflow-x:auto;padding:4px 0}
+.ln{white-space:pre-wrap;min-height:1em}
+.s{padding:1px 0;border-radius:1px}
+.legend{margin-top:22px;display:flex;flex-wrap:wrap;gap:8px;font-size:13px;color:#ccc}
+.chip{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:4px;padding:3px 8px}
+.sw{width:14px;height:14px;border-radius:2px}
+.en{text-decoration:underline dotted rgba(255,255,255,.55);text-underline-offset:.18em;text-decoration-thickness:1px}
+.dict{margin-top:26px;max-width:70ch}
+.dict p{color:var(--muted);font-size:14px;margin:4px 0 8px}
+.dict textarea{min-height:110px;font-size:14px}
+.empty{color:var(--muted);font-family:"Work Sans",sans-serif;font-size:15px}
+details{color:var(--muted);font-size:14px;margin-top:26px;max-width:70ch}
+summary{cursor:pointer;color:#ccc}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="b" style="background:#4f8a3a">Malarz</span> <span class="b" style="background:#c97fa8">rymów</span></h1>
+  <p class="lead">Wklej tekst, a program znajdzie powtarzające się układy samogłosek (rymy asonansowe, także wielosylabowe i wewnętrzne) i pokoloruje je. Ten sam kolor oznacza ten sam układ samogłosek.</p>
+
+  <textarea id="txt" spellcheck="false" aria-label="Tekst do analizy"></textarea>
+
+  <div class="controls">
+    <label>Rym wewnątrz wersu od <select id="minL"><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select> sylab</label>
+    <label>Szukaj w odległości <select id="win"><option value="1">1 wersu</option><option value="2" selected>2 wersów</option><option value="3">3 wersów</option><option value="4">4 wersów</option></select></label>
+    <label><input type="checkbox" id="internal" checked> rymy wewnętrzne</label>
+    <label>Jednosylabowe w środku wersu <select id="mascIn"><option value="auto" selected>w krótkich wersach</option><option value="always">zawsze</option><option value="never">nigdy</option></select></label>
+    <label><input type="checkbox" id="nasal" checked> ą = o, ę = e</label>
+    <label><input type="checkbox" id="iy" checked> i = y</label>
+  </div>
+
+  <div id="out" aria-live="polite"></div>
+  <div class="legend" id="legend"></div>
+
+  <div class="row" id="saveRow">
+    <button id="png">Pobierz PNG</button>
+    <button id="jpg" class="ghost">Pobierz JPG</button>
+    <span id="saveMsg" style="color:var(--muted);font-size:14px;align-self:center"></span>
+  </div>
+
+  <div class="row" style="margin-top:26px">
+    <button class="ghost" id="sample">Wstaw przykład</button>
+    <button class="ghost" id="clear">Wyczyść</button>
+  </div>
+
+  <div class="dict">
+    <label for="dict" style="font-family:Oswald,'Arial Narrow',sans-serif;font-size:20px">Wymowa obcych słów</label>
+    <p>Ponad sto popularnych angielskich słów program zna sam (flow, beat, hood, money, life…) — są w tekście podkreślone kropkami. Tu dopisz własne albo popraw wymowę: jedno na linię, słowo = jak to się czyta, zapisane po polsku. Odmiana działa sama, więc „flowem” albo „beatów” też zostaną rozpoznane.</p>
+    <textarea id="dict" spellcheck="false" placeholder="flow = floł&#10;trap = trep&#10;wifi = łajfaj"></textarea>
+  </div>
+
+  <details>
+    <summary>Jak to działa</summary>
+    <p>Każde słowo zamieniane jest na ciąg samogłosek (ó liczy się jak u, „i” przed samogłoską to tylko zmiękczenie). W polskim akcent pada na przedostatnią sylabę, więc rdzeń rymu to dwie ostatnie sylaby słowa: „jadę”, „trawę” i „prawem” to jedna rodzina a‑e, zawsze w tym samym kolorze. Słowa jednosylabowe na końcu wersu („Mam”, „Nam”, „dna”) tworzą rymy męskie, oznaczone w legendzie kropką. Jednosylabowe słowa w środku wersu („dyń”, „Dziś”) liczą się, gdy rymują się z końcem któregoś wersu — domyślnie tylko w krótkich wersach (do 8 sylab), żeby w długich nie świeciło się każde „mam” czy „tam”.</p>
+    <p>Jeśli przed rdzeniem zgadzają się kolejne samogłoski, rym jest przedłużany wstecz i malowany ciemniejszym odcieniem tego samego koloru — tak powstają rymy wielosylabowe. Spółgłoski są ignorowane, więc „skun z bonga” i „znów morda” to ten sam rym.</p>
+    <p>To heurystyka, nie fonetyka: nie zna wymowy każdego słowa, więc czasem coś pominie lub zaznaczy za dużo. Ustawienia powyżej pomagają dostroić czułość.</p>
+  </details>
+</div>
+
+<script>
+(function(){
+const PALETTE=[ // [odcień przedłużenia, kolor rdzenia rymu]
+ ["#1aa3a8","#c97fa8"],["#3f7a2e","#8fca78"],["#2b2bd9","#4a7fe0"],["#b8901c","#f0d040"],
+ ["#8a8a8a","#e07a5f"],["#8c1c1c","#e01010"],["#7a4a12","#d9862b"],["#1a6e5a","#3fbf9a"],
+ ["#5a2f90","#a77fd6"],["#3b6e8f","#7ab8e0"],["#8f3b6e","#e06ab0"],["#556b2f","#a8c060"],
+ ["#5c4033","#b08a6a"],["#2f4f4f","#7fa0a0"],["#7f1f4f","#ff8f8f"],["#4b4b9b","#9b9bff"]
+];
+const STOP=new Set("ale tego jego jej mnie przez oraz albo czyli jako przy nad pod bez to w z na się i a że nie do po o u ten ta te tu jak tak mi mnie ja ty my wy co by czy już jest są bo od za przy dla ze we mu go je ich im nam was się sie no ale lub albo oraz też tez".split(" "));
+const VOW="aąeęioóuy";
+
+function vowelClass(ch,opt){
+  if(ch==="ó")return "u";
+  if(opt.nasal){ if(ch==="ą")return "o"; if(ch==="ę")return "e"; }
+  if(opt.iy && ch==="y")return "i";
+  return ch;
+}
+// returns nuclei: [{idx, v}]
+function nuclei(word,opt){
+  const w=word.toLowerCase(), res=[];
+  for(let i=0;i<w.length;i++){
+    const c=w[i];
+    if(!VOW.includes(c))continue;
+    if(c==="i" && i+1<w.length && VOW.includes(w[i+1]))continue; // zmiękczenie
+    if(c==="u" && i>0 && (w[i-1]==="a"||w[i-1]==="e") && res.length && res[res.length-1].idx===i-1)continue; // au, eu
+    res.push({idx:i,v:vowelClass(c,opt)});
+  }
+  return res;
+}
+
+function analyse(text,opt){
+  const lines=text.replace(/\r/g,"").split("\n");
+  const L=[]; // per line: {text, words:[{start,end,w,syl:[{s,e,v,gid}]}], syls:[ref]}
+  lines.forEach((t,li)=>{
+    const words=[], syls=[];
+    const re=/[\p{L}]+/gu; let m;
+    // najpierw rozpoznaj obce słowa w całym wersie, żeby dwuznaczne (np. „wanna” = łona / polska wanna)
+    // brać za angielskie tylko wtedy, gdy obok stoi inne angielskie słowo
+    const toks=[]; while((m=re.exec(t)))toks.push({w:m[0],i:m.index,pron:lookup(m[0].toLowerCase(),opt.dict)});
+    toks.forEach((tk,k)=>{
+      const lw=tk.w.toLowerCase();
+      if(AMBIG.has(lw) && !opt.userKeys.has(lw)){
+        const near=[toks[k-1],toks[k+1]].some(n=>n&&n.pron&&!AMBIG.has(n.w.toLowerCase()));
+        if(!near)tk.pron=null;
+      }
+    });
+    for(const tk of toks){
+      m={0:tk.w,index:tk.i};
+      const w=m[0], lw=w.toLowerCase(), pron=tk.pron;
+      const word={start:m.index,end:m.index+w.length,w:lw,syl:[],eng:!!pron};
+      if(pron){
+        // obce słowo: samogłoski z polskiego zapisu wymowy, sylaby dzielone proporcjonalnie po literach
+        const nu=nuclei(pron,opt), N=nu.length;
+        nu.forEach((n,k)=>{
+          const sy={s:m.index+Math.round(w.length*k/N),e:m.index+Math.round(w.length*(k+1)/N),v:n.v,word:words.length,last:k===N-1,occ:null};
+          word.syl.push(sy); syls.push(sy);
+        });
+      }else{
+        const nu=nuclei(w,opt);
+        nu.forEach((n,k)=>{
+          // spółgłoski między samogłoskami idą do następnej sylaby
+          const sy={s:m.index,e:m.index+(k===nu.length-1?w.length:nu[k].idx+1),v:n.v,word:words.length,last:k===nu.length-1,occ:null};
+          if(k>0){ sy.s=syls[syls.length-1].e; }
+          word.syl.push(sy); syls.push(sy);
+        });
+      }
+      words.push(word);
+    }
+    L.push({text:t,words,syls});
+  });
+
+  // 1. Kandydaci: każde słowo (poza krótkimi słowami funkcyjnymi) wyznacza "rodzinę" rymu.
+  //    Akcent w polskim pada na przedostatnią sylabę, więc rdzeń rymu = 2 ostatnie sylaby słowa
+  //    (rym żeński). Słowo jednosylabowe daje rym męski (1 sylaba) — liczony tylko na końcu wersu.
+  const fam=new Map();
+  L.forEach((ln,li)=>{
+    const lastW=ln.words.map((w,i)=>i).filter(i=>ln.words[i].syl.length).pop();
+    ln.words.forEach((w,wi)=>{
+      const n=w.syl.length; if(!n)return;
+      const lineEnd=wi===lastW;
+      if(STOP.has(w.w) && !lineEnd)return; // na końcu wersu nawet "nam" się rymuje
+      const masc=n===1;
+      // rymy jednosylabowe w środku wersu: nigdy / zawsze / auto = tylko w krótkich wersach (do 8 sylab)
+      const mascInOK=opt.mascIn==="always" || (opt.mascIn==="auto" && ln.syls.length<=8);
+      if(masc && !lineEnd && !mascInOK)return;
+      if(!lineEnd && !opt.internal)return;
+      const core=w.syl.slice(masc?0:n-2);
+      const coreStart=ln.syls.indexOf(core[0]);
+      const key=core.map(s=>s.v).join("-")+(masc?" ·":"");
+      if(!fam.has(key))fam.set(key,[]);
+      fam.get(key).push({li,ci:coreStart,cl:core.length,lineEnd,word:w.w,ext:0});
+    });
+  });
+
+  // 2. Klastry: wystąpienia tej samej rodziny w odległości <= win wersów
+  const groups=[], marks=[];
+  const sameVowelsBack=(a,b)=>{ // ile sylab przed rdzeniem zgadza się samogłoskami
+    const sa=L[a.li].syls, sb=L[b.li].syls; let k=0;
+    while(k<4){
+      const ia=a.ci-1-k, ib=b.ci-1-k;
+      if(ia<0||ib<0||sa[ia].v!==sb[ib].v)break;
+      if(a.li===b.li && ((ia>=b.ci&&ia<b.ci+b.cl)||(ib>=a.ci&&ib<a.ci+a.cl)))break;
+      k++;
+    }
+    return k;
+  };
+  const keys=[...fam.keys()].sort((a,b)=>fam.get(b).length-fam.get(a).length);
+  for(const key of keys){
+    const occ=fam.get(key).sort((a,b)=>a.li-b.li||a.ci-b.ci);
+    const masc=key.endsWith("·");
+    const win=masc?opt.win+2:opt.win;
+    let cl=[], clusters=[];
+    for(const o of occ){
+      if(cl.length && o.li-cl[cl.length-1].li>win){clusters.push(cl);cl=[];}
+      cl.push(o);
+    }
+    if(cl.length)clusters.push(cl);
+    for(let c of clusters){
+      // przedłużenie rymu wstecz (rym wielosylabowy)
+      c.forEach(o=>{o.ext=0; c.forEach(p=>{ if(p!==o && p.word!==o.word) o.ext=Math.max(o.ext,sameVowelsBack(o,p)); });});
+      // rym wewnętrzny musi mieć min. długość; końce wersów zawsze się liczą
+      c=c.filter(o=>o.lineEnd || o.cl===1 || o.cl+o.ext>=opt.minL);
+      if(masc && !c.some(o=>o.lineEnd))continue; // męski rym musi zahaczać o koniec wersu
+      if(c.length<2)continue;
+      if(new Set(c.map(o=>o.word)).size<2)continue;
+      if(new Set(c.map(o=>o.li)).size<2 && c.every(o=>o.cl+o.ext<3))continue;
+      let g=groups.find(x=>x.key===key);
+      if(!g){g={key,count:0};groups.push(g);}
+      c.forEach(o=>{g.count++; marks.push({o,g});});
+    }
+  }
+  // kolory: najliczniejsze rodziny dostają pierwsze kolory z palety
+  groups.sort((a,b)=>b.count-a.count).forEach((g,i)=>g.color=PALETTE[i%PALETTE.length]);
+
+  // 3. Malowanie: najpierw rdzenie (zawsze ten sam kolor rodziny), potem przedłużenia w drugim odcieniu
+  let occId=0;
+  marks.forEach(m=>{m.id=occId++; const s=L[m.o.li].syls; for(let k=0;k<m.o.cl;k++){const sy=s[m.o.ci+k]; sy.g=m.g; sy.occ=m.id; sy.ext=false;}});
+  marks.forEach(m=>{const s=L[m.o.li].syls; for(let k=1;k<=m.o.ext;k++){const sy=s[m.o.ci-k]; if(sy.g)break; sy.g=m.g; sy.occ=m.id; sy.ext=true;}});
+  return {L,groups};
+}
+// Wbudowany słownik: angielskie słowo = wymowa zapisana po polsku (ł i j to półsamogłoski, nie liczą się jako sylaby)
+const BUILTIN=`all=ol baby=bejbi battle=betel beat=bit bitch=bicz blunt=blant bounce=bałns boom=bum bro=broł brother=brader
+business=biznes cash=kesz check=czek chill=czil city=siti club=klab coast=kołst cool=kul crazy=krejzi crew=kru
+dance=dens deal=dil dealer=diler dope=dołp drip=drip family=femili fake=fejk fame=fejm featuring=ficzering feat=fit
+fire=fajer flow=floł fly=flaj freestyle=fristajl full=ful funny=fani game=gejm glory=glori happy=hepi hater=hejter
+high=haj homie=hołmi honey=hani hood=hud hook=huk hustle=hasel hype=hajp lady=lejdi life=lajf lifestyle=lajfstajl
+light=lajt live=lajw love=law low=loł poly=poli mainstream=mejnstrim mic=majk mind=majnd money=mani nice=najs night=najt
+okay=okej ok=okej outro=ałtro party=parti player=plejer power=pałer punchline=panczlajn real=ril rich=ricz right=rajt
+shit=szit show=szoł skill=skil so=soł sorry=sori squad=skłod story=stori street=strit style=stajl swag=słeg team=tim
+the=de time=tajm track=trek true=tru underground=andergrałnd vibe=łajb weekend=łikend west=łest what=łot yeah=je yo=jo you=ju
+babe=bejb wanna=łona playstation=plejstejszyn crt=certe tv=tiwi jazzman=dżezmen sax=saks gonna=gona gotta=gota`;
+// słowa, które istnieją też po polsku — angielska wymowa tylko gdy obok jest inne angielskie słowo
+const AMBIG=new Set(["wanna"]);
+function parseDict(src,into){
+  src.split(/[\n ]+/).forEach(p=>{
+    const i=p.indexOf("="); if(i<1)return;
+    const k=p.slice(0,i).trim().toLowerCase(), v=p.slice(i+1).trim().toLowerCase();
+    if(k&&v)into.set(k,v);
+  });
+  return into;
+}
+const NOT_EN=new Set("beata beaty beacie beatę beatą reala".split(" "));
+const SUF=["ami","ach","owi","ów","om","em","ie","u","y","a","e","i","ę","ą"];
+// dopasowanie także odmienionych form: flowem, beatów, hype'u -> hypu
+function lookup(w,dict){
+  if(dict.has(w))return dict.get(w);
+  for(const s of SUF){
+    if(w.length-s.length<3||!w.endsWith(s))continue;
+    if(NOT_EN.has(w))return null;
+    const st=w.slice(0,-s.length);
+    if(st.length>=4&&dict.has(st))return dict.get(st)+s;
+    if(dict.has(st+"e"))return dict.get(st+"e")+s;
+  }
+  return null;
+}
+
+let lastRes=null;
+function render(res){
+  lastRes=res;
+  const out=document.getElementById("out");
+  out.innerHTML="";
+  const any=res.L.some(l=>l.text.trim());
+  if(!any){out.innerHTML='<p class="empty">Wklej tekst powyżej — kolory pojawią się od razu.</p>';document.getElementById("legend").innerHTML="";return;}
+  for(const ln of res.L){
+    const div=document.createElement("div"); div.className="ln";
+    const t=ln.text;
+    for(const ch of lineChunks(ln)){
+      if(!ch.c&&ch.eng){const sp=document.createElement("span");sp.className="en";sp.textContent=ch.text;div.appendChild(sp);}
+      else if(ch.c){const sp=document.createElement("span");sp.className="s"+(ch.eng?" en":"");sp.style.background=ch.c;sp.textContent=ch.text;sp.title=ch.title;div.appendChild(sp);}
+      else div.appendChild(document.createTextNode(ch.text));
+    }
+    if(!t.length)div.innerHTML="&nbsp;";
+    out.appendChild(div);
+  }
+  const lg=document.getElementById("legend"); lg.innerHTML="";
+  res.groups.slice().sort((a,b)=>b.key.split("-").length-a.key.split("-").length||b.count-a.count).forEach(g=>{
+    const ch=document.createElement("span");ch.className="chip";
+    ch.innerHTML=`<span class="sw" style="background:linear-gradient(90deg,${g.color[0]} 50%,${g.color[1]} 50%)"></span>${g.key} <span style="color:#777">×${g.count}</span>`;
+    lg.appendChild(ch);
+  });
+}
+function lineChunks(ln){
+    const t=ln.text, out=[];
+    // segmenty: każdy znak dostaje styl
+    const style=new Array(t.length).fill(null), eng=new Array(t.length).fill(false);
+    ln.words.forEach(w=>{ if(w.eng)for(let p=w.start;p<w.end;p++)eng[p]=true; });
+    ln.words.forEach((w,wi)=>{
+      w.syl.forEach(s=>{
+        if(!s.g)return;
+        const c=s.g.color[s.ext?0:1];
+        for(let p=s.s;p<s.e;p++)style[p]={c,occ:s.occ,w:wi};
+      });
+    });
+    // słowa bez samogłosek (np. "z", "w") wewnątrz rymu
+    ln.words.forEach((w,wi)=>{
+      if(w.syl.length)return;
+      const prev=findSyl(ln,wi,-1), next=findSyl(ln,wi,1);
+      if(prev&&next&&prev.occ!==null&&prev.occ===next.occ){
+        const c=prev.g.color[next.ext?0:1];
+        for(let p=w.start;p<w.end;p++)style[p]={c,occ:prev.occ,w:wi};
+      }
+    });
+    // spacja wewnątrz jednego wystąpienia w tym samym słowie się nie zdarza, łączymy znaki o tym samym kolorze i słowie
+    let i=0;
+    while(i<t.length){
+      const st=style[i]; let j=i+1;
+      while(j<t.length && sameStyle(style[j],st) && eng[j]===eng[i])j++;
+      const chunk=t.slice(i,j);
+      out.push({text:chunk,c:st?st.c:null,eng:eng[i],title:st?findKey(ln,i):""});
+      i=j;
+    }
+    return out;
+}
+function sameStyle(a,b){ if(!a||!b)return a===b; return a.c===b.c&&a.occ===b.occ&&a.w===b.w; }
+function findSyl(ln,wi,dir){ for(let k=wi+dir;k>=0&&k<ln.words.length;k+=dir){const s=ln.words[k].syl; if(s.length)return dir<0?s[s.length-1]:s[0];} return null; }
+function findKey(ln,pos){ for(const s of ln.syls)if(pos>=s.s&&pos<s.e&&s.g)return "układ: "+s.g.key; return ""; }
+
+const txt=document.getElementById("txt");
+const SAMPLE=`Znowu nocą piszę wersy, w głowie szumi miasto
+Każdy dzień to walka, ale nie odpuszczam łatwo
+Z betonu wyrastam jak trawa przez asfalt
+Mam swój rytm i zasady, nawet kiedy jest ciasno
+Lecę dalej, nie oglądam się za siebie
+Biorę mikrofon w dłoń, jakbym trzymał chleb w potrzebie
+Ziomy z bloku wiedzą, gdzie się zaczynało
+Mało było hajsu, ale serca nie brakowało`;
+function opts(){return{
+  minL:+document.getElementById("minL").value,
+  win:+document.getElementById("win").value,
+  internal:document.getElementById("internal").checked,
+  mascIn:document.getElementById("mascIn").value,
+  nasal:document.getElementById("nasal").checked,
+  iy:document.getElementById("iy").checked,
+  dict:parseDict(document.getElementById("dict").value,parseDict(BUILTIN,new Map())),
+  userKeys:new Set(parseDict(document.getElementById("dict").value,new Map()).keys())};}
+let tm;
+function run(){ try{localStorage.setItem("rymy-txt",txt.value);localStorage.setItem("rymy-dict",document.getElementById("dict").value);}catch(e){} render(analyse(txt.value,opts())); }
+function soon(){clearTimeout(tm);tm=setTimeout(run,180);}
+txt.addEventListener("input",soon);
+document.getElementById("dict").addEventListener("input",soon);
+try{document.getElementById("dict").value=localStorage.getItem("rymy-dict")||"";}catch(e){}
+document.querySelectorAll(".controls select,.controls input").forEach(el=>el.addEventListener("change",run));
+document.getElementById("sample").onclick=()=>{txt.value=SAMPLE;run();};
+document.getElementById("clear").onclick=()=>{txt.value="";run();txt.focus();};
+
+// ---------- eksport do PNG / JPG ----------
+async function drawImage(){
+  if(!lastRes)return null;
+  try{await document.fonts.load('400 44px Oswald');await document.fonts.ready;}catch(e){}
+  let lines=lastRes.L.slice();
+  while(lines.length&&!lines[0].text.trim())lines.shift();
+  while(lines.length&&!lines[lines.length-1].text.trim())lines.pop();
+  if(!lines.length)return null;
+  const FS=44, LH=Math.round(FS*1.5), PAD=72, SCALE=2;
+  const font=`400 ${FS}px Oswald, "Arial Narrow", sans-serif`;
+  const meas=document.createElement("canvas").getContext("2d"); meas.font=font;
+  let maxW=0; lines.forEach(l=>maxW=Math.max(maxW,meas.measureText(l.text.replace(/\s+$/,"")).width));
+  const W=Math.ceil(maxW+PAD*2), H=Math.ceil(lines.length*LH+PAD*2-(LH-FS*1.2));
+  const cv=document.createElement("canvas"); cv.width=W*SCALE; cv.height=H*SCALE;
+  const g=cv.getContext("2d"); g.scale(SCALE,SCALE);
+  g.fillStyle="#000"; g.fillRect(0,0,W,H);
+  g.font=font; g.textBaseline="alphabetic";
+  lines.forEach((ln,i)=>{
+    let x=PAD; const base=PAD+i*LH+FS*0.95;
+    for(const ch of lineChunks(ln)){
+      const w=g.measureText(ch.text).width;
+      if(ch.c){g.fillStyle=ch.c; g.fillRect(x,base-FS*0.95,w,FS*1.2);}
+      g.fillStyle="#fff"; g.fillText(ch.text,x,base);
+      x+=w;
+    }
+  });
+  return cv;
+}
+const msg=t=>{const el=document.getElementById("saveMsg");el.textContent=t;};
+let dl=null, dlReady=false;
+async function exportAs(kind){
+  msg("");
+  const cv=await drawImage(); if(!cv){msg("Najpierw wklej tekst.");return;}
+  const type=kind==="png"?"image/png":"image/jpeg";
+  const blob=await new Promise(r=>cv.toBlob(r,type,0.93));
+  const filename="rymy."+(kind==="png"?"png":"jpg");
+  if(dl){
+    try{await dl.save({filename,data:blob});msg("Zapisano "+filename+".");}
+    catch(e){
+      if(e&&e.code==="declined")return;
+      if(e&&e.code==="rate_limited"){msg("Okno zapisu jest już otwarte — dokończ je albo spróbuj za chwilę.");return;}
+      msg("Zapis nie jest tu dostępny.");
+    }
+  }else{ // strona otwarta poza claude.ai
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  }
+}
+document.getElementById("png").onclick=()=>exportAs("png");
+document.getElementById("jpg").onclick=()=>exportAs("jpg");
+(async()=>{
+  const box=document.getElementById("saveRow");
+  if(window.claude&&window.claude.use){
+    try{dl=await window.claude.use("downloads");}catch(e){dl=null;}
+    if(!dl)box.hidden=true;
+  }
+})();
+let saved=null; try{saved=localStorage.getItem("rymy-txt");}catch(e){}
+txt.value=saved||SAMPLE;
+run();
+})();
+</script>
+</body>
+</html>
